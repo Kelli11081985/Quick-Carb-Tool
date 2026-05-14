@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 
-// ─── Tokens ───────────────────────────────────────────────────────────────────
 const C = {
   bg:"#09090F", surface:"#0F0F1A", card:"#141422", border:"#1C1C2E",
   ink:"#EEEEF8", muted:"#5A5A7A", dim:"#3A3A55",
+
+
   amber:"#F5B944", amberSoft:"#F5B94420",
   green:"#22D99A", greenSoft:"#22D99A18",
   red:"#F04A2A", redSoft:"#F04A2A18",
@@ -14,17 +15,12 @@ const FH="'Barlow Condensed','Impact','Arial Narrow',sans-serif";
 const FB="'DM Sans','Trebuchet MS',sans-serif";
 const FM="'DM Mono','Courier New',monospace";
 
-// ─── Goals ────────────────────────────────────────────────────────────────────
-// mult applied on top of base carbPer. Performance med = 1.0x bodyweight guaranteed.
 const GOALS = {
   performance:{ label:"Performance", icon:"⚡", desc:"Fuel to go harder",   mult:1.00 },
   maintain:   { label:"Maintain",    icon:"⚖️", desc:"Sustain body weight", mult:0.82 },
   fat_loss:   { label:"Fat Loss",    icon:"🔥", desc:"Lean while training", mult:0.67 },
 };
 
-// ─── Sessions ─────────────────────────────────────────────────────────────────
-// carbPer = [low, med, high] multipliers × bodyweight (kg)
-// Med × 1.0 (Performance) must be ≥ 1.0 for all sessions except very short ones
 const SESSIONS = {
   hyrox_comp: { label:"Hyrox Comp",   icon:"🥇", sub:"Race day",           carbPer:[1.10,1.50,1.90], badge:"COMPETITION" },
   hyrox:      { label:"Hyrox Train",  icon:"🏋️", sub:"~60–90 min hybrid",  carbPer:[0.80,1.20,1.55] },
@@ -38,59 +34,64 @@ const SESSIONS = {
   run20k:     { label:"20K Run",      icon:"🎽", sub:"~100–140 min",       carbPer:[1.00,1.40,1.80] },
 };
 
-// ─── Timing ───────────────────────────────────────────────────────────────────
 const TIMING = {
   t30: { label:"30 min away",  icon:"🔴", type:"fast",  note:"Fast carbs only"  },
   t90: { label:"1–2 hrs away", icon:"🟡", type:"mixed", note:"Fast & moderate"  },
   t180:{ label:"2–3 hrs away", icon:"🟢", type:"slow",  note:"Full meal window" },
 };
 
-// ─── Intensity ────────────────────────────────────────────────────────────────
+const TIMEOFDAY = {
+  morning: { label:"Morning",   icon:"🌅", sub:"Before 10am",  note:"Quick & easy, minimal prep" },
+  midday:  { label:"Lunchtime", icon:"☀️", sub:"10am – 3pm",   note:"More time & options available" },
+  evening: { label:"Evening",   icon:"🌙", sub:"After 3pm",    note:"Full flexibility, bigger meals ok" },
+};
+
 const INTENSITY = {
   easy:  { label:"Easy",     icon:"😌", desc:"Comfortable, could hold a conversation", mod:-0.10 },
   mod:   { label:"Moderate", icon:"😤", desc:"Working hard, breathing heavily",        mod: 0    },
   hard:  { label:"Hard",     icon:"🔥", desc:"Max effort, competition level",          mod:+0.12 },
 };
 
-// ─── Foods ────────────────────────────────────────────────────────────────────
 const ALL_FOODS = [
-  // fast
-  { id:"banana",      name:"Banana",           emoji:"🍌", carbs:27,  type:"fast",  cal:105, note:"Medium banana · easy on the gut" },
-  { id:"dates",       name:"Medjool Dates",     emoji:"🫐", carbs:18,  type:"fast",  cal:66,  note:"3 dates · natural quick energy" },
-  { id:"ricecakes",   name:"Rice Cakes",        emoji:"🍘", carbs:28,  type:"fast",  cal:114, note:"4 cakes · low fibre, pre-session staple" },
-  { id:"whitebread",  name:"White Bread",       emoji:"🍞", carbs:30,  type:"fast",  cal:160, note:"2 slices · fast-digesting" },
-  { id:"sportsgel",   name:"Energy Gel",        emoji:"🧃", carbs:22,  type:"fast",  cal:85,  note:"1 gel · pure race fuel" },
-  { id:"sportsdrink", name:"Sports Drink",      emoji:"🥤", carbs:30,  type:"fast",  cal:120, note:"500ml · carbs + electrolytes" },
-  { id:"raisins",     name:"Raisins",           emoji:"🍇", carbs:32,  type:"fast",  cal:130, note:"40g handful · portable & quick" },
-  { id:"honey",       name:"Honey on Toast",    emoji:"🍯", carbs:35,  type:"fast",  cal:155, note:"1 slice + tbsp honey" },
-  { id:"fruitjuice",  name:"Orange Juice",      emoji:"🍊", carbs:26,  type:"fast",  cal:110, note:"250ml · quick glucose hit" },
-  { id:"malt_loaf",   name:"Malt Loaf",         emoji:"🍫", carbs:40,  type:"fast",  cal:175, note:"2 slices · classic runner's fuel" },
-  // mixed
-  { id:"toast_jam",   name:"Toast & Jam",       emoji:"🍞", carbs:52,  type:"both",  cal:230, note:"2 slices · fast + moderate" },
-  { id:"banana_oat",  name:"Banana + Oats",     emoji:"🍌", carbs:81,  type:"both",  cal:405, note:"Classic pre-workout combo" },
-  { id:"wrap",        name:"Tortilla Wrap",      emoji:"🌯", carbs:45,  type:"both",  cal:220, note:"1 large · versatile, easy to prep" },
-  { id:"cereal",      name:"Sugary Cereal",       emoji:"🥣", carbs:50,  type:"both",  cal:210, note:"60g · quick, low fibre" },
-  { id:"pancakes",    name:"Pancakes",           emoji:"🥞", carbs:48,  type:"both",  cal:250, note:"2 medium · great 1–2 hrs before" },
-  // slow
-  { id:"oats",        name:"Porridge Oats",      emoji:"🥣", carbs:54,  type:"slow",  cal:300, note:"100g dry · sustained release" },
-  { id:"rice",        name:"White Rice",         emoji:"🍚", carbs:56,  type:"slow",  cal:260, note:"200g cooked · steady fuel" },
-  { id:"pasta",       name:"Pasta",              emoji:"🍝", carbs:60,  type:"slow",  cal:280, note:"100g dry · classic carb load" },
-  { id:"sweetpot",    name:"Sweet Potato",       emoji:"🍠", carbs:30,  type:"slow",  cal:130, note:"150g · nutrient-dense" },
-  { id:"bagel",       name:"Bagel",              emoji:"🥯", carbs:55,  type:"slow",  cal:270, note:"1 large · high carb, low fibre" },
-  { id:"warb_bagel",  name:"Warburtons Thick Bagel", emoji:"🥯", carbs:65, type:"slow", cal:310, note:"1 thick bagel · extra carbs, great pre-session" },
-  { id:"noodles",     name:"Rice Noodles",       emoji:"🍜", carbs:50,  type:"slow",  cal:220, note:"100g dry · easy on digestion" },
-  { id:"sourdough",   name:"Sourdough Bread",    emoji:"🍞", carbs:46,  type:"slow",  cal:230, note:"2 thick slices · slower release" },
-  { id:"risotto",     name:"Risotto Rice",       emoji:"🍚", carbs:58,  type:"slow",  cal:270, note:"200g cooked · creamy carb load" },
+  { id:"banana",      name:"Banana",                emoji:"🍌", carbs:27, type:"fast",    cal:105, note:"Medium banana · easy on the gut" },
+  { id:"dates",       name:"Medjool Dates",          emoji:"🫐", carbs:18, type:"fast",    cal:66,  note:"3 dates · natural quick energy" },
+  { id:"ricecakes",   name:"Rice Cakes",             emoji:"🍘", carbs:28, type:"fast",    cal:114, note:"4 cakes · low fibre, pre-session staple" },
+  { id:"whitebread",  name:"White Bread",            emoji:"🍞", carbs:30, type:"fast",    cal:160, note:"2 slices · fast-digesting" },
+  { id:"sportsgel",   name:"Energy Gel",             emoji:"🧃", carbs:22, type:"fast",    cal:85,  note:"1 gel · pure race fuel" },
+  { id:"sportsdrink", name:"Sports Drink",           emoji:"🥤", carbs:30, type:"fast",    cal:120, note:"500ml · carbs + electrolytes" },
+  { id:"raisins",     name:"Raisins",                emoji:"🍇", carbs:32, type:"fast",    cal:130, note:"40g handful · portable & quick" },
+  { id:"honey",       name:"Honey on Toast",         emoji:"🍯", carbs:35, type:"fast",    cal:155, note:"1 slice + tbsp honey" },
+  { id:"fruitjuice",  name:"Orange Juice",           emoji:"🍊", carbs:26, type:"fast",    cal:110, note:"250ml · quick glucose hit" },
+  { id:"malt_loaf",   name:"Malt Loaf",              emoji:"🍫", carbs:40, type:"fast",    cal:175, note:"2 slices · classic runner's fuel" },
+  { id:"toast_jam",   name:"Toast & Jam",            emoji:"🍞", carbs:52, type:"both",    cal:230, note:"2 slices · fast + moderate" },
+  { id:"banana_oat",  name:"Banana + Oats",          emoji:"🍌", carbs:81, type:"both",    cal:405, note:"Classic pre-workout combo" },
+  { id:"wrap",        name:"Tortilla Wrap",           emoji:"🌯", carbs:45, type:"both",    cal:220, note:"1 large · versatile, easy to prep" },
+  { id:"cereal",      name:"Sugary Cereal",           emoji:"🥣", carbs:50, type:"both",    cal:210, note:"60g · quick, low fibre" },
+  { id:"pancakes",    name:"Pancakes",               emoji:"🥞", carbs:48, type:"both",    cal:250, note:"2 medium · great 1–2 hrs before" },
+  { id:"oats",        name:"Porridge Oats",           emoji:"🥣", carbs:54, type:"slow",    cal:300, note:"100g dry · sustained release" },
+  { id:"rice",        name:"White Rice",              emoji:"🍚", carbs:56, type:"slow",    cal:260, note:"200g cooked · steady fuel" },
+  { id:"pasta",       name:"Pasta",                  emoji:"🍝", carbs:60, type:"slow",    cal:280, note:"100g dry · classic carb load" },
+  { id:"sweetpot",    name:"Sweet Potato",           emoji:"🍠", carbs:30, type:"slow",    cal:130, note:"150g · nutrient-dense" },
+  { id:"bagel",       name:"Bagel",                  emoji:"🥯", carbs:55, type:"slow",    cal:270, note:"1 large · high carb, low fibre" },
+  { id:"warb_bagel",  name:"Warburtons Thick Bagel", emoji:"🥯", carbs:65, type:"slow",    cal:310, note:"1 thick bagel · extra carbs, great pre-session" },
+  { id:"noodles",     name:"Rice Noodles",           emoji:"🍜", carbs:50, type:"slow",    cal:220, note:"100g dry · easy on digestion" },
+  { id:"sourdough",   name:"Sourdough Bread",        emoji:"🍞", carbs:46, type:"slow",    cal:230, note:"2 thick slices · slower release" },
+  { id:"risotto",     name:"Risotto Rice",           emoji:"🍚", carbs:58, type:"slow",    cal:270, note:"200g cooked · creamy carb load" },
+  { id:"soreen",      name:"Soreen Malt Loaf",       emoji:"🍫", carbs:38, type:"morning", cal:165, note:"2 slices · no prep needed, great on the go" },
+  { id:"jam_ricecake",name:"Jam on Rice Cakes",      emoji:"🍘", carbs:36, type:"morning", cal:145, note:"4 cakes + jam · dead simple, fast carbs" },
+  { id:"cereal_bar",  name:"Cereal Bar",             emoji:"🍬", carbs:30, type:"morning", cal:135, note:"1 bar · grab & go, no fuss" },
+  { id:"honey_bagel", name:"Bagel with Honey",       emoji:"🥯", carbs:62, type:"morning", cal:280, note:"1 bagel + tbsp honey · quick & high carb" },
+  { id:"fruit_pouch", name:"Fruit Pouch",            emoji:"🍓", carbs:20, type:"morning", cal:80,  note:"1 pouch · pure quick carbs, zero effort" },
 ];
 
-function getFoods(timingKey) {
+function getFoods(timingKey, todKey) {
   const { type } = TIMING[timingKey];
+  if (todKey === "morning") return ALL_FOODS.filter(f => f.type === "morning" || f.type === "fast");
   if (type==="fast")  return ALL_FOODS.filter(f=>f.type==="fast");
   if (type==="slow")  return ALL_FOODS.filter(f=>f.type==="slow"||f.type==="both");
   return ALL_FOODS.filter(f=>f.type==="fast"||f.type==="both");
 }
 
-// ─── Calc ─────────────────────────────────────────────────────────────────────
 function calcCarbs(weightKg, sessionKey, goalKey, intensityKey) {
   const [lo,mid,hi] = SESSIONS[sessionKey].carbPer;
   const gm = GOALS[goalKey].mult;
@@ -102,17 +103,16 @@ function calcCarbs(weightKg, sessionKey, goalKey, intensityKey) {
   };
 }
 
-// ─── Steps ────────────────────────────────────────────────────────────────────
 const STEPS = [
-  { id:"unit",      title:"What unit do you use?",          type:"choice2",
+  { id:"unit",      title:"What unit do you use?",             type:"choice2",
     options:[{val:"kg",label:"Kilograms",icon:"🇬🇧",sub:"kg"},{val:"lbs",label:"Pounds",icon:"🇺🇸",sub:"lbs"}] },
-  { id:"weight",    title:"What's your bodyweight?",         type:"number" },
-  { id:"session",   title:"What's today's session?",         type:"sgrid" },
-  { id:"intensity", title:"How hard is today's session?",    type:"igrid" },
-  { id:"timing",    title:"How long until you train?",       type:"tgrid" },
+  { id:"weight",    title:"What's your bodyweight?",           type:"number" },
+  { id:"session",   title:"What's today's session?",           type:"sgrid" },
+  { id:"intensity", title:"How hard is today's session?",      type:"igrid" },
+  { id:"timing",    title:"How long until you train?",         type:"tgrid" },
+  { id:"timeofday", title:"What time of day is your session?", type:"todgrid" },
 ];
 
-// ─── Animated number ──────────────────────────────────────────────────────────
 function AnimCount({ to, duration=700 }) {
   const [val,setVal]=useState(0);
   useEffect(()=>{
@@ -129,7 +129,6 @@ function AnimCount({ to, duration=700 }) {
   return <>{val}</>;
 }
 
-// ─── Logo ─────────────────────────────────────────────────────────────────────
 function TCMLogo() {
   return (
     <div style={{display:"flex",alignItems:"center",gap:8,userSelect:"none"}}>
@@ -147,7 +146,6 @@ function TCMLogo() {
   );
 }
 
-// ─── Progress dots ────────────────────────────────────────────────────────────
 function Dots({step,total}) {
   return (
     <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:26}}>
@@ -159,7 +157,6 @@ function Dots({step,total}) {
   );
 }
 
-// ─── Meal Builder ─────────────────────────────────────────────────────────────
 function MealBuilder({ target, foods, accentColor }) {
   const [selected, setSelected] = useState({});
   const total = Object.entries(selected).reduce((sum,[id,qty])=>{
@@ -171,31 +168,21 @@ function MealBuilder({ target, foods, accentColor }) {
   const remaining = target - total;
 
   function toggle(id) {
-    setSelected(s=>{
-      if(s[id]) { const n={...s}; delete n[id]; return n; }
-      return {...s,[id]:1};
-    });
+    setSelected(s=>{ if(s[id]){const n={...s};delete n[id];return n;} return {...s,[id]:1}; });
   }
   function changeQty(id, delta) {
-    setSelected(s=>{
-      const cur = s[id]||0;
-      const next = cur+delta;
-      if(next<=0){ const n={...s}; delete n[id]; return n; }
-      return {...s,[id]:next};
-    });
+    setSelected(s=>{ const cur=s[id]||0; const next=cur+delta; if(next<=0){const n={...s};delete n[id];return n;} return {...s,[id]:next}; });
   }
 
   return (
     <div>
-      {/* Progress bar */}
       <div style={{marginBottom:16}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:8}}>
           <div style={{fontFamily:FH,fontSize:18,fontWeight:800,color:C.ink}}>Build Your Meal</div>
           <div style={{fontFamily:FM,fontSize:11,color:over?C.red:C.muted}}>
-            {over ? `+${total-target}g over` : remaining===0 ? "✓ On target!" : `${remaining}g to go`}
+            {over?`+${total-target}g over`:remaining===0?"✓ On target!":`${remaining}g to go`}
           </div>
         </div>
-        {/* Bar */}
         <div style={{height:8,background:C.border,borderRadius:4,overflow:"hidden"}}>
           <div style={{height:"100%",borderRadius:4,width:`${pct*100}%`,background:over?C.red:pct>=0.9?C.green:accentColor,transition:"width .3s ease"}}/>
         </div>
@@ -204,30 +191,26 @@ function MealBuilder({ target, foods, accentColor }) {
           <div style={{fontFamily:FM,fontSize:11,color:C.muted}}>target: {target}g</div>
         </div>
       </div>
-
-      {/* Food grid */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
         {foods.map(f=>{
-          const qty = selected[f.id]||0;
-          const isOn = qty>0;
+          const qty=selected[f.id]||0;
+          const isOn=qty>0;
           return (
             <div key={f.id} onClick={()=>!isOn&&toggle(f.id)}
-              style={{background:isOn?`${accentColor}15`:C.card,border:`1.5px solid ${isOn?accentColor:C.border}`,borderRadius:14,padding:"12px",cursor:isOn?"default":"pointer",transition:"all .18s",position:"relative"}}>
+              style={{background:isOn?`${accentColor}15`:C.card,border:`1.5px solid ${isOn?accentColor:C.border}`,borderRadius:14,padding:"12px",cursor:isOn?"default":"pointer",transition:"all .18s"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
                 <span style={{fontSize:22}}>{f.emoji}</span>
                 <span style={{fontFamily:FH,fontSize:20,fontWeight:800,color:isOn?accentColor:C.muted,lineHeight:1}}>{f.carbs*qty||f.carbs}g</span>
               </div>
               <div style={{fontFamily:FH,fontSize:13,fontWeight:700,color:C.ink,marginBottom:2}}>{f.name}</div>
               <div style={{fontFamily:FM,fontSize:9,color:C.muted,lineHeight:1.3,marginBottom:8}}>{f.note}</div>
-              {isOn ? (
-                <div style={{display:"flex",alignItems:"center",gap:0,justifyContent:"space-between"}}>
-                  <button onClick={e=>{e.stopPropagation();changeQty(f.id,-1);}}
-                    style={{width:28,height:28,borderRadius:8,border:`1px solid ${accentColor}`,background:"transparent",color:accentColor,fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>−</button>
+              {isOn?(
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <button onClick={e=>{e.stopPropagation();changeQty(f.id,-1);}} style={{width:28,height:28,borderRadius:8,border:`1px solid ${accentColor}`,background:"transparent",color:accentColor,fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>−</button>
                   <span style={{fontFamily:FH,fontSize:16,fontWeight:700,color:C.ink}}>×{qty}</span>
-                  <button onClick={e=>{e.stopPropagation();changeQty(f.id,+1);}}
-                    style={{width:28,height:28,borderRadius:8,border:`1px solid ${accentColor}`,background:accentColor,color:C.white,fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>+</button>
+                  <button onClick={e=>{e.stopPropagation();changeQty(f.id,+1);}} style={{width:28,height:28,borderRadius:8,border:`1px solid ${accentColor}`,background:accentColor,color:C.white,fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>+</button>
                 </div>
-              ) : (
+              ):(
                 <div style={{fontFamily:FM,fontSize:9,color:accentColor,letterSpacing:1,textTransform:"uppercase"}}>+ Add</div>
               )}
             </div>
@@ -241,15 +224,14 @@ function MealBuilder({ target, foods, accentColor }) {
   );
 }
 
-// ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const [step,setStep]         = useState(0);
-  const [answers,setAnswers]   = useState({});
-  const [numVal,setNumVal]     = useState("");
-  const [err,setErr]           = useState("");
-  const [goal,setGoal]         = useState("performance");
-  const [level,setLevel]       = useState("med");
-  const [done,setDone]         = useState(false);
+  const [step,setStep]       = useState(0);
+  const [answers,setAnswers] = useState({});
+  const [numVal,setNumVal]   = useState("");
+  const [err,setErr]         = useState("");
+  const [goal,setGoal]       = useState("performance");
+  const [level,setLevel]     = useState("med");
+  const [done,setDone]       = useState(false);
 
   const cur = STEPS[step];
 
@@ -263,10 +245,10 @@ export default function App() {
   function handleNum() {
     const raw=Number(numVal);
     const unit=answers.unit||"kg";
-    const weightKg = unit==="lbs" ? Math.round(raw/2.205) : raw;
+    const weightKg=unit==="lbs"?Math.round(raw/2.205):raw;
     const min=unit==="lbs"?77:35, max=unit==="lbs"?440:200;
     if(!numVal||isNaN(raw)||raw<min||raw>max){setErr(`Enter a value between ${min}–${max} ${unit}`);return;}
-    setErr(""); setNumVal(""); advance("weight", weightKg);
+    setErr(""); setNumVal(""); advance("weight",weightKg);
   }
 
   function restart() {
@@ -277,18 +259,16 @@ export default function App() {
   const weightKg  = answers.weight||70;
   const sessionKey= answers.session||"crossfit";
   const intensKey = answers.intensity||"mod";
-  const carbs     = done ? calcCarbs(weightKg,sessionKey,goal,intensKey) : null;
+  const carbs     = done?calcCarbs(weightKg,sessionKey,goal,intensKey):null;
   const LC={low:C.amber,med:C.green,high:C.red};
   const LL={low:"LOW",med:"MEDIUM",high:"HIGH"};
   const LD={
-    low: "Lighter days or easing into pre-session fuelling",
-    med: "Your everyday baseline — start here",
+    low:"Lighter days or easing into pre-session fuelling",
+    med:"Your everyday baseline — start here",
     high:"Hard sessions, back-to-back training or competition prep",
   };
-  const foods = done ? getFoods(answers.timing||"t90") : [];
-  const sess  = done ? SESSIONS[sessionKey] : null;
-
-  const unitLabel = answers.unit==="lbs" ? "lbs" : "kg";
+  const foods=done?getFoods(answers.timing||"t90",answers.timeofday||"midday"):[];
+  const sess=done?SESSIONS[sessionKey]:null;
 
   return (
     <>
@@ -296,8 +276,7 @@ export default function App() {
         @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap');
         *{box-sizing:border-box;margin:0;padding:0;}
         html,body{background:${C.bg};min-height:100vh;}
-        input[type=number]::-webkit-inner-spin-button,
-        input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;}
+        input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;}
         input[type=number]{-moz-appearance:textfield;}
         ::-webkit-scrollbar{width:4px;}
         ::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px;}
@@ -308,59 +287,51 @@ export default function App() {
       `}</style>
 
       <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column",alignItems:"center",fontFamily:FB,padding:"0 16px 64px"}}>
-
-        {/* Header */}
         <div style={{width:"100%",maxWidth:580,display:"flex",justifyContent:"space-between",alignItems:"center",padding:"20px 0 22px",borderBottom:`1px solid ${C.border}`,marginBottom:32}}>
           <TCMLogo/>
           <div style={{fontFamily:FM,fontSize:9,color:C.muted,letterSpacing:2.5,textTransform:"uppercase"}}>Pre-Session Carb Tool</div>
         </div>
 
         <div style={{width:"100%",maxWidth:580}}>
-
-          {/* ── QUESTIONS ── */}
-          {!done ? (
+          {!done?(
             <div className="si" key={step}>
               <Dots step={step} total={STEPS.length}/>
               <div style={{fontFamily:FH,fontSize:36,fontWeight:800,color:C.ink,lineHeight:1.1,marginBottom:28,letterSpacing:-0.5}}>{cur.title}</div>
 
-              {/* Unit / 2-choice */}
-              {cur.type==="choice2" && (
+              {cur.type==="choice2"&&(
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                   {cur.options.map(opt=>(
                     <button key={opt.val} className="bg" onClick={()=>advance(cur.id,opt.val)}
                       style={{padding:"24px 16px",borderRadius:16,border:`1.5px solid ${C.border}`,background:C.surface,color:C.ink,cursor:"pointer",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
                       <span style={{fontSize:32}}>{opt.icon}</span>
-                      <span style={{fontFamily:FH,fontSize:20,fontWeight:800,letterSpacing:0.5}}>{opt.label}</span>
+                      <span style={{fontFamily:FH,fontSize:20,fontWeight:800}}>{opt.label}</span>
                       <span style={{fontFamily:FM,fontSize:11,color:C.muted}}>{opt.sub}</span>
                     </button>
                   ))}
                 </div>
               )}
 
-              {/* Weight number */}
-              {cur.type==="number" && (
+              {cur.type==="number"&&(
                 <>
                   <div style={{position:"relative",marginBottom:err?8:20}}>
                     <input autoFocus type="number" value={numVal} placeholder={answers.unit==="lbs"?"e.g. 165":"e.g. 75"}
                       onChange={e=>{setNumVal(e.target.value);setErr("");}}
                       onKeyDown={e=>e.key==="Enter"&&handleNum()}
-                      style={{width:"100%",background:C.surface,border:`1.5px solid ${err?C.red:C.border}`,borderRadius:14,color:C.ink,fontSize:38,fontWeight:700,fontFamily:FH,padding:"18px 80px 18px 22px",outline:"none",transition:"border-color .2s",letterSpacing:-0.5}}
+                      style={{width:"100%",background:C.surface,border:`1.5px solid ${err?C.red:C.border}`,borderRadius:14,color:C.ink,fontSize:38,fontWeight:700,fontFamily:FH,padding:"18px 80px 18px 22px",outline:"none",transition:"border-color .2s"}}
                       onFocus={e=>e.target.style.borderColor=C.amber}
                       onBlur={e=>e.target.style.borderColor=err?C.red:C.border}
                     />
                     <span style={{position:"absolute",right:20,top:"50%",transform:"translateY(-50%)",color:C.muted,fontFamily:FM,fontSize:14}}>{answers.unit||"kg"}</span>
                   </div>
                   {err&&<div style={{color:C.red,fontSize:12,marginBottom:12,fontFamily:FM}}>{err}</div>}
-                  <button onClick={handleNum}
-                    style={{width:"100%",padding:"17px",borderRadius:14,border:"none",background:`linear-gradient(135deg,${C.amber},${C.red})`,color:C.white,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:FH,letterSpacing:2,textTransform:"uppercase"}}
+                  <button onClick={handleNum} style={{width:"100%",padding:"17px",borderRadius:14,border:"none",background:`linear-gradient(135deg,${C.amber},${C.red})`,color:C.white,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:FH,letterSpacing:2,textTransform:"uppercase"}}
                     onMouseEnter={e=>e.currentTarget.style.opacity=".85"}
                     onMouseLeave={e=>e.currentTarget.style.opacity="1"}
                   >Continue →</button>
                 </>
               )}
 
-              {/* Session grid */}
-              {cur.type==="sgrid" && (
+              {cur.type==="sgrid"&&(
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9}}>
                   {Object.entries(SESSIONS).map(([val,s])=>(
                     <button key={val} className="bg" onClick={()=>advance(cur.id,val)}
@@ -374,8 +345,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* Intensity grid */}
-              {cur.type==="igrid" && (
+              {cur.type==="igrid"&&(
                 <div style={{display:"flex",flexDirection:"column",gap:10}}>
                   {Object.entries(INTENSITY).map(([val,i])=>(
                     <button key={val} className="bg" onClick={()=>advance(cur.id,val)}
@@ -390,15 +360,28 @@ export default function App() {
                 </div>
               )}
 
-              {/* Timing grid */}
-              {cur.type==="tgrid" && (
+              {cur.type==="tgrid"&&(
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
                   {Object.entries(TIMING).map(([val,t])=>(
                     <button key={val} className="bg" onClick={()=>advance(cur.id,val)}
                       style={{padding:"20px 12px",borderRadius:14,border:`1.5px solid ${C.border}`,background:C.surface,color:C.ink,cursor:"pointer",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
                       <span style={{fontSize:28}}>{t.icon}</span>
-                      <span style={{fontFamily:FH,fontSize:15,fontWeight:700,lineHeight:1.1}}>{t.label}</span>
+                      <span style={{fontFamily:FH,fontSize:15,fontWeight:700}}>{t.label}</span>
                       <span style={{fontFamily:FM,fontSize:10,color:C.muted}}>{t.note}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {cur.type==="todgrid"&&(
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+                  {Object.entries(TIMEOFDAY).map(([val,t])=>(
+                    <button key={val} className="bg" onClick={()=>advance(cur.id,val)}
+                      style={{padding:"20px 12px",borderRadius:14,border:`1.5px solid ${C.border}`,background:C.surface,color:C.ink,cursor:"pointer",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
+                      <span style={{fontSize:28}}>{t.icon}</span>
+                      <span style={{fontFamily:FH,fontSize:15,fontWeight:700}}>{t.label}</span>
+                      <span style={{fontFamily:FM,fontSize:10,color:C.muted}}>{t.sub}</span>
+                      <span style={{fontFamily:FM,fontSize:9,color:C.amber,marginTop:2}}>{t.note}</span>
                     </button>
                   ))}
                 </div>
@@ -409,13 +392,8 @@ export default function App() {
                   style={{background:"none",border:"none",color:C.muted,fontSize:11,marginTop:22,cursor:"pointer",fontFamily:FM,letterSpacing:2,textTransform:"uppercase"}}>← back</button>
               )}
             </div>
-
-          ) : (
-
-            // ── RESULTS ──────────────────────────────────────────────────────
+          ):(
             <div className="si">
-
-              {/* Goal toggle */}
               <div style={{marginBottom:22}}>
                 <div style={{fontFamily:FM,fontSize:10,color:C.muted,letterSpacing:3,textTransform:"uppercase",marginBottom:10}}>Your goal</div>
                 <div style={{display:"flex",gap:8}}>
@@ -423,14 +401,13 @@ export default function App() {
                     <button key={key} onClick={()=>setGoal(key)}
                       style={{flex:1,padding:"11px 8px",borderRadius:12,border:`1.5px solid ${goal===key?C.amber:C.border}`,background:goal===key?C.amberSoft:C.surface,color:goal===key?C.amber:C.muted,cursor:"pointer",transition:"all .2s",textAlign:"center"}}>
                       <div style={{fontSize:18,marginBottom:3}}>{g.icon}</div>
-                      <div style={{fontFamily:FH,fontSize:13,fontWeight:700,letterSpacing:0.5}}>{g.label}</div>
+                      <div style={{fontFamily:FH,fontSize:13,fontWeight:700}}>{g.label}</div>
                       <div style={{fontFamily:FM,fontSize:9,opacity:.7,marginTop:2}}>{g.desc}</div>
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Level tabs */}
               <div style={{display:"flex",gap:6,marginBottom:14}}>
                 {["low","med","high"].map(lvl=>(
                   <button key={lvl} onClick={()=>setLevel(lvl)}
@@ -438,22 +415,15 @@ export default function App() {
                 ))}
               </div>
 
-              {/* Big number card */}
               <div style={{background:C.surface,border:`1.5px solid ${LC[level]}44`,borderRadius:20,padding:"28px 24px 22px",marginBottom:14,textAlign:"center",position:"relative",overflow:"hidden",boxShadow:`0 0 40px ${LC[level]}12`}}>
                 <div style={{position:"absolute",top:-40,left:"50%",transform:"translateX(-50%)",width:220,height:130,background:`radial-gradient(ellipse,${LC[level]}20,transparent 70%)`,pointerEvents:"none"}}/>
-                {sess?.badge&&(
-                  <div style={{display:"inline-block",background:C.amber,color:C.bg,fontFamily:FM,fontSize:9,fontWeight:700,letterSpacing:2,padding:"3px 10px",borderRadius:100,marginBottom:8,textTransform:"uppercase"}}>🥇 {sess.badge}</div>
-                )}
-                <div style={{fontFamily:FM,fontSize:10,color:C.muted,letterSpacing:3,textTransform:"uppercase",marginBottom:4}}>
-                  eat this before your {sess?.label}
-                </div>
+                {sess?.badge&&<div style={{display:"inline-block",background:C.amber,color:C.bg,fontFamily:FM,fontSize:9,fontWeight:700,letterSpacing:2,padding:"3px 10px",borderRadius:100,marginBottom:8,textTransform:"uppercase"}}>🥇 {sess.badge}</div>}
+                <div style={{fontFamily:FM,fontSize:10,color:C.muted,letterSpacing:3,textTransform:"uppercase",marginBottom:4}}>eat this before your {sess?.label}</div>
                 <div style={{fontFamily:FH,fontSize:92,fontWeight:800,color:LC[level],lineHeight:1,letterSpacing:-3,marginBottom:2}}>
                   <AnimCount to={carbs[level]} key={`${level}-${goal}-${intensKey}`}/>
                 </div>
                 <div style={{fontFamily:FM,fontSize:12,color:C.muted,letterSpacing:3,textTransform:"uppercase"}}>grams of carbs</div>
                 <div style={{marginTop:14,padding:"10px 16px",background:`${LC[level]}0E`,borderRadius:10,fontFamily:FB,fontSize:12.5,color:C.ink,opacity:.85,lineHeight:1.5}}>{LD[level]}</div>
-
-                {/* badges row */}
                 <div style={{marginTop:10,display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
                   <div style={{display:"inline-flex",gap:5,alignItems:"center",padding:"4px 10px",borderRadius:100,background:C.card,border:`1px solid ${C.border}`,fontFamily:FM,fontSize:10,color:C.muted}}>
                     {TIMING[answers.timing].icon} {TIMING[answers.timing].label}
@@ -464,10 +434,14 @@ export default function App() {
                   <div style={{display:"inline-flex",gap:5,alignItems:"center",padding:"4px 10px",borderRadius:100,background:C.card,border:`1px solid ${C.border}`,fontFamily:FM,fontSize:10,color:C.muted}}>
                     ⚖️ {weightKg}kg
                   </div>
+                  {answers.timeofday&&(
+                    <div style={{display:"inline-flex",gap:5,alignItems:"center",padding:"4px 10px",borderRadius:100,background:C.card,border:`1px solid ${C.border}`,fontFamily:FM,fontSize:10,color:C.muted}}>
+                      {TIMEOFDAY[answers.timeofday].icon} {TIMEOFDAY[answers.timeofday].label} session
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Quick range */}
               <div style={{display:"flex",gap:8,marginBottom:28}}>
                 {["low","med","high"].map(lvl=>(
                   <button key={lvl} onClick={()=>setLevel(lvl)}
@@ -478,15 +452,13 @@ export default function App() {
                 ))}
               </div>
 
-              {/* ── MEAL BUILDER ── */}
               <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:18,padding:"20px 18px",marginBottom:24}}>
                 <div style={{fontFamily:FM,fontSize:10,color:LC[level],letterSpacing:3,textTransform:"uppercase",marginBottom:16}}>
-                  {TIMING[answers.timing].type==="fast"?"⚡ Fast-release options":TIMING[answers.timing].type==="slow"?"🍽 Full meal options":"🔀 Fast & moderate options"}
+                  {answers.timeofday==="morning"?"🌅 Quick morning options":TIMING[answers.timing].type==="fast"?"⚡ Fast-release options":TIMING[answers.timing].type==="slow"?"🍽 Full meal options":"🔀 Fast & moderate options"}
                 </div>
                 <MealBuilder target={carbs[level]} foods={foods} accentColor={LC[level]}/>
               </div>
 
-              {/* When to eat */}
               <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:"16px 18px",marginBottom:20}}>
                 <div style={{fontFamily:FM,fontSize:10,color:C.teal,letterSpacing:3,textTransform:"uppercase",marginBottom:10}}>When to eat it</div>
                 {[
@@ -501,7 +473,6 @@ export default function App() {
                 ))}
               </div>
 
-              {/* Signs */}
               <div style={{background:C.redSoft,border:`1px solid ${C.red}28`,borderRadius:14,padding:"14px 16px",marginBottom:24}}>
                 <div style={{fontFamily:FM,fontSize:10,color:C.red,letterSpacing:3,textTransform:"uppercase",marginBottom:8}}>Signs you're underfuelling</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"5px 12px"}}>
@@ -529,3 +500,5 @@ export default function App() {
     </>
   );
 }
+
+Copy everything inside the code block, paste it into src/App.jsx on GitHub, and commit. That's the complete fixed version! 🎉Sonnet 4.6Claude is AI and can make mistakes. Please double-check responses.
