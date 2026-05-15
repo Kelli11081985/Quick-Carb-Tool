@@ -44,6 +44,12 @@ const TIMEOFDAY = {
   evening: { label:"Evening",   icon:"🌙", sub:"After 3pm",    note:"Full flexibility, bigger meals ok" },
 };
 
+const ALREADY_EATEN = {
+  good:  { label:"Yes, a good amount", icon:"✅", desc:"Meals with rice, pasta, oats or bread today",  topup:0.30 },
+  little:{ label:"Yes, a little",      icon:"🟡", desc:"A snack or light meal but not much",           topup:0.60 },
+  none:  { label:"Not yet",            icon:"❌", desc:"Haven't really eaten carbs today",              topup:1.00 },
+};
+
 const INTENSITY = {
   easy:  { label:"Easy",     icon:"😌", desc:"Comfortable, could hold a conversation", mod:-0.10 },
   mod:   { label:"Moderate", icon:"😤", desc:"Working hard, breathing heavily",        mod: 0    },
@@ -90,25 +96,26 @@ function getFoods(timingKey, todKey) {
   return ALL_FOODS.filter(f=>f.type==="fast"||f.type==="both");
 }
 
-function calcCarbs(weightKg, sessionKey, goalKey, intensityKey) {
+function calcCarbs(weightKg, sessionKey, goalKey, intensityKey, topupMult=1.0) {
   const [lo,mid,hi] = SESSIONS[sessionKey].carbPer;
   const gm = GOALS[goalKey].mult;
   const im = INTENSITY[intensityKey].mod;
   return {
-    low:  Math.round(lo  * weightKg * gm),
-    med:  Math.round(mid * weightKg * Math.max(gm + im, 0.3)),
-    high: Math.round(hi  * weightKg * Math.max(gm + im, 0.3)),
+    low:  Math.round(lo  * weightKg * gm * topupMult),
+    med:  Math.round(mid * weightKg * Math.max(gm + im, 0.3) * topupMult),
+    high: Math.round(hi  * weightKg * Math.max(gm + im, 0.3) * topupMult),
   };
 }
 
 const STEPS = [
-  { id:"unit",      title:"What unit do you use?",             type:"choice2",
+  { id:"unit",        title:"What unit do you use?",             type:"choice2",
     options:[{val:"kg",label:"Kilograms",icon:"🇬🇧",sub:"kg"},{val:"lbs",label:"Pounds",icon:"🇺🇸",sub:"lbs"}] },
-  { id:"weight",    title:"What's your bodyweight?",           type:"number" },
-  { id:"session",   title:"What's today's session?",           type:"sgrid" },
-  { id:"intensity", title:"How hard is today's session?",      type:"igrid" },
-  { id:"timing",    title:"How long until you train?",         type:"tgrid" },
-  { id:"timeofday", title:"What time of day is your session?", type:"todgrid" },
+  { id:"weight",      title:"What's your bodyweight?",           type:"number" },
+  { id:"session",     title:"What's today's session?",           type:"sgrid" },
+  { id:"intensity",   title:"How hard is today's session?",      type:"igrid" },
+  { id:"timing",      title:"How long until you train?",         type:"tgrid" },
+  { id:"timeofday",   title:"What time of day is your session?", type:"todgrid" },
+  { id:"alreadyeaten",title:"Have you eaten carbs today?",       type:"aegrid", skipIf:"morning" },
 ];
 
 function AnimCount({ to, duration=700 }) {
@@ -236,7 +243,11 @@ export default function App() {
   function advance(key,val) {
     const next={...answers,[key]:val};
     setAnswers(next);
-    if(step+1<STEPS.length) setStep(s=>s+1);
+    let nextStep = step + 1;
+    if (nextStep < STEPS.length && STEPS[nextStep].id === "alreadyeaten" && next.timeofday === "morning") {
+      nextStep++;
+    }
+    if(nextStep < STEPS.length) setStep(nextStep);
     else setDone(true);
   }
 
@@ -254,10 +265,12 @@ export default function App() {
     setGoal("performance");setLevel("med");setDone(false);
   }
 
-  const weightKg  = answers.weight||70;
-  const sessionKey= answers.session||"crossfit";
-  const intensKey = answers.intensity||"mod";
-  const carbs     = done?calcCarbs(weightKg,sessionKey,goal,intensKey):null;
+  const weightKg   = answers.weight||70;
+  const sessionKey = answers.session||"crossfit";
+  const intensKey  = answers.intensity||"mod";
+  const isMorning  = answers.timeofday === "morning";
+  const topupMult  = (!isMorning && answers.alreadyeaten && ALREADY_EATEN[answers.alreadyeaten]) ? ALREADY_EATEN[answers.alreadyeaten].topup : 1.0;
+  const carbs      = done ? calcCarbs(weightKg,sessionKey,goal,intensKey,topupMult) : null;
   const LC={low:C.amber,med:C.green,high:C.red};
   const LL={low:"LOW",med:"MEDIUM",high:"HIGH"};
   const LD={
@@ -385,6 +398,21 @@ export default function App() {
                 </div>
               )}
 
+              {cur.type==="aegrid"&&(
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {Object.entries(ALREADY_EATEN).map(([val,a])=>(
+                    <button key={val} className="bg" onClick={()=>advance(cur.id,val)}
+                      style={{padding:"18px 20px",borderRadius:14,border:`1.5px solid ${C.border}`,background:C.surface,color:C.ink,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:16}}>
+                      <span style={{fontSize:30}}>{a.icon}</span>
+                      <div>
+                        <div style={{fontFamily:FH,fontSize:18,fontWeight:700}}>{a.label}</div>
+                        <div style={{fontFamily:FB,fontSize:12,color:C.muted,marginTop:2}}>{a.desc}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {step>0&&(
                 <button onClick={()=>{setStep(s=>s-1);setErr("");setNumVal("");}}
                   style={{background:"none",border:"none",color:C.muted,fontSize:11,marginTop:22,cursor:"pointer",fontFamily:FM,letterSpacing:2,textTransform:"uppercase"}}>← back</button>
@@ -416,7 +444,9 @@ export default function App() {
               <div style={{background:C.surface,border:`1.5px solid ${LC[level]}44`,borderRadius:20,padding:"28px 24px 22px",marginBottom:14,textAlign:"center",position:"relative",overflow:"hidden",boxShadow:`0 0 40px ${LC[level]}12`}}>
                 <div style={{position:"absolute",top:-40,left:"50%",transform:"translateX(-50%)",width:220,height:130,background:`radial-gradient(ellipse,${LC[level]}20,transparent 70%)`,pointerEvents:"none"}}/>
                 {sess?.badge&&<div style={{display:"inline-block",background:C.amber,color:C.bg,fontFamily:FM,fontSize:9,fontWeight:700,letterSpacing:2,padding:"3px 10px",borderRadius:100,marginBottom:8,textTransform:"uppercase"}}>🥇 {sess.badge}</div>}
-                <div style={{fontFamily:FM,fontSize:10,color:C.muted,letterSpacing:3,textTransform:"uppercase",marginBottom:4}}>eat this before your {sess?.label}</div>
+                <div style={{fontFamily:FM,fontSize:10,color:C.muted,letterSpacing:3,textTransform:"uppercase",marginBottom:4}}>
+                  {isMorning?"eat this before your":answers.alreadyeaten==="good"?"top up with this before your":answers.alreadyeaten==="little"?"add this before your":"eat this before your"} {sess?.label}
+                </div>
                 <div style={{fontFamily:FH,fontSize:92,fontWeight:800,color:LC[level],lineHeight:1,letterSpacing:-3,marginBottom:2}}>
                   <AnimCount to={carbs[level]} key={`${level}-${goal}-${intensKey}`}/>
                 </div>
@@ -437,8 +467,28 @@ export default function App() {
                       {TIMEOFDAY[answers.timeofday].icon} {TIMEOFDAY[answers.timeofday].label} session
                     </div>
                   )}
+                  {answers.alreadyeaten&&!isMorning&&(
+                    <div style={{display:"inline-flex",gap:5,alignItems:"center",padding:"4px 10px",borderRadius:100,background:C.card,border:`1px solid ${C.border}`,fontFamily:FM,fontSize:10,color:C.muted}}>
+                      {ALREADY_EATEN[answers.alreadyeaten].icon} {ALREADY_EATEN[answers.alreadyeaten].label}
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {!isMorning&&answers.alreadyeaten&&(
+                <div style={{background:answers.alreadyeaten==="good"?C.greenSoft:answers.alreadyeaten==="little"?C.amberSoft:C.redSoft,border:`1px solid ${answers.alreadyeaten==="good"?C.green:answers.alreadyeaten==="little"?C.amber:C.red}30`,borderRadius:14,padding:"12px 16px",marginBottom:16}}>
+                  <div style={{fontFamily:FH,fontSize:15,fontWeight:700,color:answers.alreadyeaten==="good"?C.green:answers.alreadyeaten==="little"?C.amber:C.red,marginBottom:4}}>
+                    {answers.alreadyeaten==="good"&&"✅ You're well fuelled — just top up"}
+                    {answers.alreadyeaten==="little"&&"🟡 You've had a little — add a solid top-up"}
+                    {answers.alreadyeaten==="none"&&"❌ You haven't fuelled yet — treat this like a full pre-session meal"}
+                  </div>
+                  <div style={{fontFamily:FB,fontSize:12,color:C.muted,lineHeight:1.5}}>
+                    {answers.alreadyeaten==="good"&&"Your carb target below reflects what you still need. Keep it light and easy to digest."}
+                    {answers.alreadyeaten==="little"&&"You need a decent top-up. Aim for the medium target and pick foods with a bit more substance."}
+                    {answers.alreadyeaten==="none"&&"Eat the full target below. Don't skip it — going into this session under-fuelled will hurt your performance."}
+                  </div>
+                </div>
+              )}
 
               <div style={{display:"flex",gap:8,marginBottom:28}}>
                 {["low","med","high"].map(lvl=>(
@@ -452,7 +502,7 @@ export default function App() {
 
               <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:18,padding:"20px 18px",marginBottom:24}}>
                 <div style={{fontFamily:FM,fontSize:10,color:LC[level],letterSpacing:3,textTransform:"uppercase",marginBottom:16}}>
-                  {answers.timeofday==="morning"?"🌅 Quick morning options":TIMING[answers.timing].type==="fast"?"⚡ Fast-release options":TIMING[answers.timing].type==="slow"?"🍽 Full meal options":"🔀 Fast & moderate options"}
+                  {isMorning?"🌅 Quick morning options":TIMING[answers.timing].type==="fast"?"⚡ Fast-release options":TIMING[answers.timing].type==="slow"?"🍽 Full meal options":"🔀 Fast & moderate options"}
                 </div>
                 <MealBuilder target={carbs[level]} foods={foods} accentColor={LC[level]}/>
               </div>
