@@ -3,8 +3,6 @@ import { useState, useEffect } from "react";
 const C = {
   bg:"#09090F", surface:"#0F0F1A", card:"#141422", border:"#1C1C2E",
   ink:"#EEEEF8", muted:"#5A5A7A", dim:"#3A3A55",
-
-
   amber:"#F5B944", amberSoft:"#F5B94420",
   green:"#22D99A", greenSoft:"#22D99A18",
   red:"#F04A2A", redSoft:"#F04A2A18",
@@ -499,4 +497,4 @@ export default function App() {
       </div>
     </>
   );
-
+}
